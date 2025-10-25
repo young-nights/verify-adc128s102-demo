@@ -31,17 +31,22 @@ extern "C" {
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-
+#include "app_sys.h"
 /* USER CODE END Includes */
 
 /* Exported types ------------------------------------------------------------*/
 /* USER CODE BEGIN ET */
+extern SPI_HandleTypeDef hspi2;
 
+extern UART_HandleTypeDef huart1;
 /* USER CODE END ET */
 
 /* Exported constants --------------------------------------------------------*/
 /* USER CODE BEGIN EC */
-
+void SystemClock_Config(void);
+void MX_GPIO_Init(void);
+void MX_SPI2_Init(void);
+void MX_USART1_UART_Init(void);
 /* USER CODE END EC */
 
 /* Exported macro ------------------------------------------------------------*/
@@ -50,7 +55,6 @@ extern "C" {
 /* USER CODE END EM */
 
 /* Exported functions prototypes ---------------------------------------------*/
-void Error_Handler(void);
 
 /* USER CODE BEGIN EFP */
 
