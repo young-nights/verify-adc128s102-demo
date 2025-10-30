@@ -10,109 +10,110 @@
 
 
 #include <adc128s102cimtx.h>
+#include <drv_spi.h>
 
 
+#define ADC128S102_SPI_NAME     "adc128s_spi2"
+#define ADC128S102_SPI_BUS      "spi2"
 
+struct rt_spi_device *adc128s_spi_dev;
+static struct rt_mutex  adc128s_spi_lock;
 
-/* PI0~PI3 引脚定义 */
-#define ADC128S102_CS_PIN   GET_PIN(I, 0)   /* PI0 片选 */
-#define ADC128S102_SCK_PIN  GET_PIN(I, 1)   /* PI1 时钟 */
-#define ADC128S102_MISO_PIN GET_PIN(I, 2)   /* PI2 主机输入 */
-#define ADC128S102_MOSI_PIN GET_PIN(I, 3)   /* PI3 主机输出 */
-
-
-/* 本地函数：软件 SPI 读写 16 位（Mode1：CPOL=0 CPHA=1） */
-static rt_uint16_t soft_spi_xfer16(rt_uint16_t tx)
+static int adc128s102_spi_init(void)
 {
-    rt_uint16_t rx = 0;
-    int i;
-    for (i = 15; i >= 0; --i)
-    {
-        /* 先置数据 */
-        if (tx & (1u << i))
-            rt_pin_write(ADC128S102_MOSI_PIN, PIN_HIGH);
-        else
-            rt_pin_write(ADC128S102_MOSI_PIN, PIN_LOW);
 
-        rt_thread_mdelay(1);               /* 短延时，>50 ns 即可 */
-
-        /* 上升沿移位（Mode1 采样在下降沿，移位在上升沿） */
-        rt_pin_write(ADC128S102_SCK_PIN, PIN_HIGH);
-        rt_thread_mdelay(1);
-
-        /* 下降沿采样 MISO */
-        if (rt_pin_read(ADC128S102_MISO_PIN) == PIN_HIGH)
-            rx |= (1u << i);
-
-        rt_pin_write(ADC128S102_SCK_PIN, PIN_LOW);
-        rt_thread_mdelay(1);
+    rt_hw_spi_device_attach(ADC128S102_SPI_BUS, ADC128S102_SPI_NAME, ADC128S_CS_PORT, ADC128S_CS_PIN);
+    adc128s_spi_dev = (struct rt_spi_device *)rt_device_find(ADC128S102_SPI_NAME);
+    if(adc128s_spi_dev == RT_NULL){
+        LOG_E("LOG:%d. adc128s102 spi device is not found!",Record.ulog_cnt++);
     }
-    return rx;
+    else{
+        LOG_I("LOG:%d. adc128s102 spi device is successfully!",Record.ulog_cnt++);
+    }
+
+    struct rt_spi_configuration adc128s_spi_cfg;
+
+    adc128s_spi_cfg.data_width = 8;
+    adc128s_spi_cfg.max_hz = 10*1000*1000;
+    adc128s_spi_cfg.mode = RT_SPI_MASTER | RT_SPI_MODE_1 | RT_SPI_MSB;
+    rt_spi_configure(adc128s_spi_dev, &adc128s_spi_cfg);
+
+    rt_mutex_init(&adc128s_spi_lock, "adc128s_mutex", RT_IPC_FLAG_PRIO);
+    return RT_EOK;
 }
+INIT_DEVICE_EXPORT(adc128s102_spi_init);
 
 
 
-/* 读一次 ADC，channel 0~7 */
-static rt_uint16_t adc128s102_read_raw(rt_uint8_t ch)
+
+/* ---------------------------------------------------------
+ * 核心读取函数
+ * --------------------------------------------------------- */
+#define ADC128S102_MAX_CH   8
+#define ADC128S102_VREF_MV  5000
+rt_err_t adc128s102_read_raw(rt_uint8_t ch, rt_uint16_t *value)
 {
-    rt_uint16_t tx, rx;
-    RT_ASSERT(ch <= 7);
+    RT_ASSERT(ch < ADC128S102_MAX_CH);
 
+    rt_uint16_t tx = (ch & 0x07) << 11;   /* 命令帧 */
+    rt_uint16_t rx = 0;
 
-    tx = (ch & 0x07) << 11;
+    struct rt_spi_message msg =
+    {
+        .send_buf   = &tx,
+        .recv_buf   = &rx,
+        .length     = 2,
+        .cs_take    = 1,
+        .cs_release = 1,
+        .next       = RT_NULL
+    };
 
-    rt_pin_write(ADC128S102_CS_PIN, PIN_LOW);   /* 选中 */
-    rx = soft_spi_xfer16(tx);                   /* 双向 16 时钟 */
-    rt_pin_write(ADC128S102_CS_PIN, PIN_HIGH);  /* 释放 */
+    rt_mutex_take(&adc128s_spi_lock, RT_WAITING_FOREVER);
+    rt_spi_transfer_message(adc128s_spi_dev, &msg);
+    rt_mutex_release(&adc128s_spi_lock);
 
-    /* ADC128S102 回传格式：高 4 位无效 + 12 位数据 */
-    return (rx & 0x0FFF);
+    *value = rx & 0x0FFF;                   /* 12 位有效 */
+    return RT_EOK;
 }
 
 
-/* RT-Thread 设备接口 ----------------------------------------------------*/
-/* 引脚初始化，上电调用一次 */
-void adc128s102_init(void)
+
+/* 对外：读电压（mV） */
+rt_err_t adc128s102_read_voltage(rt_uint8_t ch, rt_uint32_t *voltage_mv)
 {
-    rt_pin_mode(ADC128S102_CS_PIN,   PIN_MODE_OUTPUT);
-    rt_pin_mode(ADC128S102_SCK_PIN,  PIN_MODE_OUTPUT);
-    rt_pin_mode(ADC128S102_MOSI_PIN, PIN_MODE_OUTPUT);
-    rt_pin_mode(ADC128S102_MISO_PIN, PIN_MODE_INPUT);
+    rt_uint16_t raw;
+    rt_err_t ret = adc128s102_read_raw(ch, &raw);
+    rt_kprintf("raw = %d\n",raw);
+    if (ret != RT_EOK){
+        return ret;
+    }
 
-    rt_pin_write(ADC128S102_CS_PIN,  PIN_HIGH);
-    rt_pin_write(ADC128S102_SCK_PIN, PIN_LOW);
+    /* 转成电压，四舍五入 */
+    *voltage_mv = (raw * ADC128S102_VREF_MV ) / 4095;
+    return RT_EOK;
 }
 
-
-
-/* 把 12-bit 原始码值转成电压，单位 mV，Vref = 5 000 mV */
-static rt_uint16_t adc128s102_raw_to_mv(rt_uint16_t raw)
-{
-    /* 避免溢出：先乘 5000 再除 4095 */
-    return (rt_uint32_t)raw * 5000 / 4095;
-}
-
-/* 如果想直接得到浮点伏特，再包一层 */
-static float adc128s102_raw_to_volt(rt_uint16_t raw)
-{
-    return raw * (5.0f / 4095.0f);
-}
 
 
 void adc128s102_thread_entry(void *parameter)
 {
-    adc128s102_init();
 
-    while (1)
+    rt_uint32_t voltage;
+
+    for(;;)
     {
-        rt_uint16_t raw = adc128s102_read_raw(1);      /* 通道 1 */
-        rt_uint16_t mv  = adc128s102_raw_to_mv(raw);   /* 整数毫伏 */
-        float       v   = adc128s102_raw_to_volt(raw); /* 浮点伏特 */
+        if (adc128s102_read_voltage(1, &voltage) == RT_EOK){
+            /* 打印通道号和电压，单位 mV */
+            rt_kprintf("CH%d = %4d mV\r\n", 1, voltage);
+        }
+        else{
+            rt_kprintf("CH%d read error!\r\n", 1);
+        }
 
-        rt_kprintf("CH1 raw = %d  ->  %d mV  (%.3f V)\n", raw, mv, v);
-        rt_thread_mdelay(100);
+        rt_thread_mdelay(500);
     }
 }
+
 
 
 static rt_thread_t adc128s_Task_Handle = RT_NULL;
@@ -130,8 +131,6 @@ int adc128s102_thread_init(void)
     return RT_EOK;
 }
 INIT_ENV_EXPORT(adc128s102_thread_init);
-
-
 
 
 

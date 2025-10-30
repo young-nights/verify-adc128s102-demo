@@ -37,6 +37,8 @@ extern "C" {
 /* Exported types ------------------------------------------------------------*/
 /* USER CODE BEGIN ET */
 
+extern SPI_HandleTypeDef hspi2;
+
 extern UART_HandleTypeDef huart1;
 /* USER CODE END ET */
 
@@ -45,6 +47,7 @@ extern UART_HandleTypeDef huart1;
 void SystemClock_Config(void);
 void MX_GPIO_Init(void);
 void MX_USART1_UART_Init(void);
+void MX_SPI2_Init(void);
 /* USER CODE END EC */
 
 /* Exported macro ------------------------------------------------------------*/
@@ -54,7 +57,6 @@ void MX_USART1_UART_Init(void);
 
 /* Exported functions prototypes ---------------------------------------------*/
 
-
 /* USER CODE BEGIN EFP */
 
 /* USER CODE END EFP */
@@ -62,12 +64,6 @@ void MX_USART1_UART_Init(void);
 /* Private defines -----------------------------------------------------------*/
 #define SPI2_NSS_Pin GPIO_PIN_0
 #define SPI2_NSS_GPIO_Port GPIOI
-#define SPI2_SCK_Pin GPIO_PIN_1
-#define SPI2_SCK_GPIO_Port GPIOI
-#define SPI2_MISO_Pin GPIO_PIN_2
-#define SPI2_MISO_GPIO_Port GPIOI
-#define SPI2_MOSI_Pin GPIO_PIN_3
-#define SPI2_MOSI_GPIO_Port GPIOI
 
 /* USER CODE BEGIN Private defines */
 
