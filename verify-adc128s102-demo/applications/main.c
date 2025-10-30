@@ -9,6 +9,7 @@
  */
 
 #include <rtthread.h>
+#include "app_sys.h"
 
 #define DBG_TAG "main"
 #define DBG_LVL DBG_LOG
@@ -35,7 +36,7 @@ int main(void)
   /* USER CODE END Init */
 
   /* Configure the system clock */
-  SystemClock_Config();
+//  SystemClock_Config();
 
   /* USER CODE BEGIN SysInit */
 
@@ -43,8 +44,8 @@ int main(void)
 
   /* Initialize all configured peripherals */
   MX_GPIO_Init();
-  MX_SPI2_Init();
   MX_USART1_UART_Init();
+
   /* USER CODE BEGIN 2 */
 
   /* USER CODE END 2 */
@@ -54,10 +55,8 @@ int main(void)
   while (1)
   {
     /* USER CODE END WHILE */
-
-      rt_thread_mdelay(500);
+      rt_thread_mdelay(100);
     /* USER CODE BEGIN 3 */
   }
   /* USER CODE END 3 */
 }
-
