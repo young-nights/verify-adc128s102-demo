@@ -19,7 +19,7 @@
   * @brief  The application entry point.
   * @retval int
   */
-__WEAK int main(void)
+int main(void)
 {
 
   /* USER CODE BEGIN 1 */
@@ -36,7 +36,7 @@ __WEAK int main(void)
   /* USER CODE END Init */
 
   /* Configure the system clock */
-  SystemClock_Config();
+//  SystemClock_Config();
 
   /* USER CODE BEGIN SysInit */
 

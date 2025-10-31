@@ -33,8 +33,8 @@ static int adc128s102_spi_init(void)
 
     struct rt_spi_configuration adc128s_spi_cfg;
 
-    adc128s_spi_cfg.data_width = 8;
-    adc128s_spi_cfg.max_hz = 10*1000*1000;
+    adc128s_spi_cfg.data_width = 16;
+    adc128s_spi_cfg.max_hz = 21*1000*1000;
     adc128s_spi_cfg.mode = RT_SPI_MASTER | RT_SPI_MODE_1 | RT_SPI_MSB;
     rt_spi_configure(adc128s_spi_dev, &adc128s_spi_cfg);
 
@@ -55,14 +55,13 @@ rt_err_t adc128s102_read_raw(rt_uint8_t ch, rt_uint16_t *value)
 {
     RT_ASSERT(ch < ADC128S102_MAX_CH);
 
-    rt_uint16_t tx = (ch & 0x07) << 11;   /* 命令帧 */
+    rt_uint16_t tx = (ch & 0x07) << 11;   /* 命令帧 0x0800..0xE800 */
     rt_uint16_t rx = 0;
 
-    struct rt_spi_message msg =
-    {
+    struct rt_spi_message msg = {
         .send_buf   = &tx,
         .recv_buf   = &rx,
-        .length     = 2,
+        .length     = 1,            /* 单位=字，1×16 bit */
         .cs_take    = 1,
         .cs_release = 1,
         .next       = RT_NULL
@@ -78,18 +77,35 @@ rt_err_t adc128s102_read_raw(rt_uint8_t ch, rt_uint16_t *value)
 
 
 
-/* 对外：读电压（mV） */
-rt_err_t adc128s102_read_voltage(rt_uint8_t ch, rt_uint32_t *voltage_mv)
+
+/* 把 12-bit 原始码值转成电压，单位 mV，Vref = 5 000 mV */
+static rt_uint16_t adc128s102_raw_to_mv(rt_uint16_t raw)
+{
+    /* 避免溢出：先乘 5000 再除 4095 */
+    return (rt_uint32_t)raw * 5000 / 4095;
+}
+
+/* 如果想直接得到浮点伏特，再包一层 */
+static float adc128s102_raw_to_volt(rt_uint16_t raw)
+{
+    return raw * (5.0f / 4095.0f);
+}
+
+
+
+rt_err_t adc128s102_read_and_print(uint8_t ch)
 {
     rt_uint16_t raw;
     rt_err_t ret = adc128s102_read_raw(ch, &raw);
-    rt_kprintf("raw = %d\n",raw);
-    if (ret != RT_EOK){
+    if (ret != RT_EOK) {
+        rt_kprintf("CH%u read error!\n", ch);
         return ret;
     }
 
-    /* 转成电压，四舍五入 */
-    *voltage_mv = (raw * ADC128S102_VREF_MV ) / 4095;
+    rt_uint16_t mv = adc128s102_raw_to_mv(raw);
+    float       v  = adc128s102_raw_to_volt(raw);
+
+    rt_kprintf("CH%u raw = %u  ->  %u mV  (%.3f V)\n", ch, raw, mv, v);
     return RT_EOK;
 }
 
@@ -98,18 +114,9 @@ rt_err_t adc128s102_read_voltage(rt_uint8_t ch, rt_uint32_t *voltage_mv)
 void adc128s102_thread_entry(void *parameter)
 {
 
-    rt_uint32_t voltage;
-
     for(;;)
     {
-        if (adc128s102_read_voltage(1, &voltage) == RT_EOK){
-            /* 打印通道号和电压，单位 mV */
-            rt_kprintf("CH%d = %4d mV\r\n", 1, voltage);
-        }
-        else{
-            rt_kprintf("CH%d read error!\r\n", 1);
-        }
-
+        adc128s102_read_and_print(1);
         rt_thread_mdelay(500);
     }
 }
