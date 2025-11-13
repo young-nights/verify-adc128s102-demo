@@ -3,7 +3,8 @@
 
 ```bash
 create_at： 2025/10/30
-aliases：   1.平台：STM32F407IGT6
+aliases：   1.硬件：STM32F407IGT6
+            2.平台：RT-Thread
 ```
 
 
