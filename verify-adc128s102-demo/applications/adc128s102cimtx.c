@@ -51,7 +51,7 @@ INIT_DEVICE_EXPORT(adc128s102_spi_init);
  * --------------------------------------------------------- */
 #define ADC128S102_MAX_CH   8
 #define ADC128S102_VREF_MV  5000
-rt_err_t adc128s102_read_raw(rt_uint8_t ch, rt_uint16_t *value)
+rt_err_t adc128s102_read_raw(adc128s_channel_et ch, rt_uint16_t *value)
 {
     RT_ASSERT(ch < ADC128S102_MAX_CH);
 
@@ -93,7 +93,7 @@ static float adc128s102_raw_to_volt(rt_uint16_t raw)
 
 
 
-rt_err_t adc128s102_read_and_print(uint8_t ch)
+rt_err_t adc128s102_read_and_print(adc128s_channel_et ch)
 {
     rt_uint16_t raw;
     rt_err_t ret = adc128s102_read_raw(ch, &raw);
